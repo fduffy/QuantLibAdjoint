@@ -323,7 +323,7 @@ void SwapTest::testCachedValue() {
 
 
 test_suite* SwapTest::suite() {
-    test_suite* suite = BOOST_TEST_SUITE("Swap tests");
+    test_suite* suite = BOOST_TEST_SUITE("SwapTests");
     suite->add(QUANTLIB_TEST_CASE(&SwapTest::testFairRate));
     suite->add(QUANTLIB_TEST_CASE(&SwapTest::testFairSpread));
     suite->add(QUANTLIB_TEST_CASE(&SwapTest::testRateDependency));
