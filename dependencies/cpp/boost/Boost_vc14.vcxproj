@@ -19,7 +19,6 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{05FCBA2D-EBAF-4265-94E6-CB33526C758F}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -48,12 +47,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)lib\</OutDir>
-    <TargetName>libboost_unit_test_framework-vc140-mt-gd-1_57</TargetName>
+    <TargetName>libboost_unit_test_framework-vc120-mt-gd-1_57</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)lib\</OutDir>
-    <TargetName>libboost_unit_test_framework-vc140-mt-1_57</TargetName>
+    <TargetName>libboost_unit_test_framework-vc120-mt-1_57</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

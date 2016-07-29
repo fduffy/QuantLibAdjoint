@@ -139,7 +139,7 @@
 #include "lookbackoptions.hpp"
 #include "lowdiscrepancysequences.hpp"
 #include "margrabeoption.hpp"
-//#include "marketmodel.hpp"
+#include "marketmodel.hpp"
 #include "marketmodel_smmcapletalphacalibration.hpp"
 #include "marketmodel_smmcapletcalibration.hpp"
 #include "marketmodel_smmcaplethomocalibration.hpp"
@@ -323,7 +323,7 @@ test_suite* init_unit_test_suite(int, char* []) {
     BOOST_TEST_MESSAGE(rule);
     BOOST_TEST_MESSAGE(header.str());
     BOOST_TEST_MESSAGE(rule);
-    test_suite* test = BOOST_TEST_SUITE("QuantLib_test_suite");
+    test_suite* test = BOOST_TEST_SUITE("QuantLib test suite");
 
     test->add(QUANTLIB_TEST_CASE(startTimer));
 
@@ -383,7 +383,7 @@ test_suite* init_unit_test_suite(int, char* []) {
     test->add(LinearLeastSquaresRegressionTest::suite());
     test->add(LookbackOptionTest::suite());
     test->add(LowDiscrepancyTest::suite());
-//    test->add(MarketModelTest::suite());
+    test->add(MarketModelTest::suite());
     test->add(MarketModelCmsTest::suite());
     test->add(MarketModelSmmTest::suite());
     test->add(MarketModelSmmCapletAlphaCalibrationTest::suite());

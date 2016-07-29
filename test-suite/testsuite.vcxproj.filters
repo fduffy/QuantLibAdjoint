@@ -227,6 +227,9 @@
     <ClCompile Include="margrabeoption.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="marketmodel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="marketmodel_cms.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -636,6 +639,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="margrabeoption.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="marketmodel.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="marketmodel_cms.hpp">
