@@ -532,12 +532,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="basicexample.cpp" />
+    <ClCompile Include="example_1.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\QuantLib.vcxproj">
       <Project>{ad0a27da-91da-46a2-acbd-296c419ed3aa}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="example_1.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
