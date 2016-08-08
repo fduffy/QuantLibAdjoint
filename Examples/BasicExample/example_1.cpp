@@ -13,9 +13,14 @@
 
 using namespace QuantLib;
 using std::vector;
+using std::string;
 using std::cout;
 using std::endl;
+using std::setw;
+using std::left;
 using std::ios;
+using std::size_t;
+using CppAD::thread_alloc;
 
 void runExample_1() {
 
@@ -69,4 +74,24 @@ void runExample_1() {
 	cout << "Forward derivative:  " << forwardDeriv << endl;
 	cout << "Reverse derivative:  " << reverseDeriv << endl;
 	cout << "Analytic derivative: " << derivative << endl;
+	cout << endl;
+
+	// Output some properties of the tape sequence
+	size_t size = 0;
+	vector<string> properties{ "f.size_op()", "f.size_op_arg()", "f.size_par()", "f.size_text()", "f.size_VecAD()" };
+	vector<size_t> numbers{ f.size_op(), f.size_op_arg(), f.size_par(), f.size_text(), f.size_VecAD() };
+	vector<size_t> sizes{ sizeof(CppAD::OpCode), sizeof(CPPAD_TAPE_ADDR_TYPE), 
+		sizeof(double), sizeof(char), sizeof(CPPAD_TAPE_ADDR_TYPE) };
+
+	cout << "Some properties of the tape sequence" << endl;
+	cout << setw(17) << left << "f.size_op_seq()" << f.size_op_seq() << "B" << endl;
+	for (size_t i = 0; i < properties.size(); ++i) {
+		cout << setw(17) << left << properties[i] << numbers[i] << " x " << sizes[i] << " = "
+			<< numbers[i] * sizes[i] << "B" << endl;
+		size += numbers[i] * sizes[i];
+	}
+	cout << setw(17) << left << "Total" << size << "B" << endl;
+
+	size_t thread = thread_alloc::thread_num();
+	cout << setw(17) << left << "Total (in use)" << thread_alloc::inuse(thread) << "B" << endl;
 }
