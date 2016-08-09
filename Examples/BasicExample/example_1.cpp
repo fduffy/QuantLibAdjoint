@@ -5,8 +5,10 @@
 
 #include <ql/indexes/ibor/euribor.hpp>
 #include <ql/instruments/makevanillaswap.hpp>
+#include <ql/quotes/simplequote.hpp>
 #include <ql/termstructures/yield/flatforward.hpp>
 
+#include <boost/format.hpp>
 #include <boost/make_shared.hpp>
 
 #include <iostream>
@@ -36,7 +38,9 @@ void runExample_1() {
 
 	// Start taping with zeroRate as independent variable and set up flat zero curve
 	cl::Independent(zeroRate);
-	Handle<YieldTermStructure> flatCurve(boost::make_shared<FlatForward>(referenceDate, zeroRate[0], dayCounter));
+	boost::shared_ptr<SimpleQuote> pZeroQuote = boost::make_shared<SimpleQuote>(zeroRate[0]);
+	Handle<Quote> zeroQuote(pZeroQuote);
+	Handle<YieldTermStructure> flatCurve(boost::make_shared<FlatForward>(referenceDate, zeroQuote, dayCounter));
 	flatCurve->enableExtrapolation();
 
 	// Create and price swap
@@ -68,30 +72,46 @@ void runExample_1() {
 	Time timeToEnd = dayCounter.yearFraction(referenceDate, swap->maturityDate());
 	derivative += timeToEnd * flatCurve->discount(timeToEnd) - timeToStart * flatCurve->discount(timeToStart);
 
+	// Calculate by finite difference
+	Real basisPoint = 0.0001;
+	pZeroQuote->setValue(zeroRate[0] + basisPoint);
+	Real oneSidedDiff = (swap->NPV() - swapNpv[0]) / basisPoint;
+	pZeroQuote->setValue(zeroRate[0] - basisPoint);
+	Real twoSidedDiff = (oneSidedDiff - (swap->NPV() - swapNpv[0]) / basisPoint) / 2.0;
+
 	// Output the results
-	cout.precision(9);
-	cout.setf(ios::fixed, ios::floatfield);
-	cout << "Forward derivative:  " << forwardDeriv << endl;
-	cout << "Reverse derivative:  " << reverseDeriv << endl;
-	cout << "Analytic derivative: " << derivative << endl;
+	boost::format headerFmter("%-20s|%=12s\n");
+	boost::format fmter("%-20s|%=12.9f\n");
+
+	cout << "\nCompare derivatives:\n\n";
+	headerFmter % "Method" % "Derivative";
+	cout << headerFmter;
+	string rule(headerFmter.str().length(), '=');
+	cout << rule << endl;
+	cout << fmter % "Forward derivative" % forwardDeriv;
+	cout << fmter % "Reverse derivative" % reverseDeriv;
+	cout << fmter % "Analytic derivative" % derivative;
+	cout << fmter % "One-sided FD" % oneSidedDiff;
+	cout << fmter % "Two-sided FD" % twoSidedDiff;
 	cout << endl;
 
 	// Output some properties of the tape sequence
-	size_t size = 0;
+	Size size = 0;
 	vector<string> properties{ "f.size_op()", "f.size_op_arg()", "f.size_par()", "f.size_text()", "f.size_VecAD()" };
-	vector<size_t> numbers{ f.size_op(), f.size_op_arg(), f.size_par(), f.size_text(), f.size_VecAD() };
-	vector<size_t> sizes{ sizeof(CppAD::OpCode), sizeof(CPPAD_TAPE_ADDR_TYPE), 
+	vector<Size> numbers{ f.size_op(), f.size_op_arg(), f.size_par(), f.size_text(), f.size_VecAD() };
+	vector<Size> sizes{ sizeof(CppAD::OpCode), sizeof(CPPAD_TAPE_ADDR_TYPE),
 		sizeof(double), sizeof(char), sizeof(CPPAD_TAPE_ADDR_TYPE) };
 
-	cout << "Some properties of the tape sequence" << endl;
+	cout << "Some properties of the tape sequence:" << endl;
+	cout << endl;
 	cout << setw(17) << left << "f.size_op_seq()" << f.size_op_seq() << "B" << endl;
-	for (size_t i = 0; i < properties.size(); ++i) {
+	for (Size i = 0; i < properties.size(); ++i) {
 		cout << setw(17) << left << properties[i] << numbers[i] << " x " << sizes[i] << " = "
 			<< numbers[i] * sizes[i] << "B" << endl;
 		size += numbers[i] * sizes[i];
 	}
 	cout << setw(17) << left << "Total" << size << "B" << endl;
 
-	size_t thread = thread_alloc::thread_num();
+	Size thread = thread_alloc::thread_num();
 	cout << setw(17) << left << "Total (in use)" << thread_alloc::inuse(thread) << "B" << endl;
 }

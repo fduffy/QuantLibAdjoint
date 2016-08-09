@@ -2,6 +2,7 @@
 */
 
 #include "example_1.hpp"
+#include "example_2.hpp"
 
 #include <ql/errors.hpp>
 #include <ql/types.hpp>
@@ -32,6 +33,9 @@ int main(int argc, char* argv[]) {
 		switch (exampleIndex) {
 		case 1:
 			runExample_1();
+			break;
+		case 2:
+			runExample_2();
 			break;
 		default:
 			QL_FAIL("The example with example index " << exampleIndex << " does not exist.");
