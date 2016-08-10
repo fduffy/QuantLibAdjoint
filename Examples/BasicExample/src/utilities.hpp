@@ -3,12 +3,18 @@
 #include <ql/types.hpp>
 
 #include <boost/format.hpp>
+#include <boost/timer/timer.hpp>
 
 #include <sstream>
 
 using namespace QuantLib;
-using std::ostringstream;
 using CppAD::thread_alloc;
+using boost::timer::cpu_times;
+using boost::timer::format;
+using std::cout;
+using std::ostringstream;
+using std::map;
+using std::string;
 
 // Print out properties of the tape sequence in a formatted table
 template <typename Base>
@@ -38,3 +44,5 @@ void printProperties(const cl::tape_function<Base>& f) {
 	Size thread = thread_alloc::thread_num();
 	cout << fmter % "Total (in use)" % thread_alloc::inuse(thread);
 }
+
+void printTimings(const map<string, cpu_times>& timings);

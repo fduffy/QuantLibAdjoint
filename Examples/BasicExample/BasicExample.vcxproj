@@ -535,6 +535,7 @@
     <ClCompile Include="src\example_1.cpp" />
     <ClCompile Include="src\example_2.cpp" />
     <ClCompile Include="src\example_3.cpp" />
+    <ClCompile Include="src\utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\QuantLib.vcxproj">

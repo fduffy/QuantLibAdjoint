@@ -9,6 +9,15 @@
 #include <ql/types.hpp>
 
 #include <boost/lexical_cast.hpp>
+#ifdef BOOST_MSVC
+#define BOOST_LIB_NAME boost_timer
+#include <boost/config/auto_link.hpp>
+#define BOOST_LIB_NAME boost_chrono
+#include <boost/config/auto_link.hpp>
+#define BOOST_LIB_NAME boost_system
+#include <boost/config/auto_link.hpp>
+#undef BOOST_LIB_NAME
+#endif
 
 #include <iostream>
 

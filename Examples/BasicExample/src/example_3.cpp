@@ -12,17 +12,27 @@
 
 #include <boost/format.hpp>
 #include <boost/make_shared.hpp>
+#include <boost/timer/timer.hpp>
 
 #include <iostream>
 
 using namespace QuantLib;
 using std::vector;
+using std::map;
 using std::string;
 using std::cout;
 using std::endl;
+using boost::timer::cpu_timer;
+using boost::timer::cpu_times;
 
 void runExample_3() {
 
+	// Create a timer
+	cpu_timer timer;
+	timer.stop();
+	map<string, cpu_times> timings;
+
+	// Set evaluation date
 	Date referenceDate(3, Aug, 2016);
 	Settings::instance().evaluationDate() = referenceDate;
 	Actual365Fixed dayCounter;
@@ -69,45 +79,74 @@ void runExample_3() {
 	Handle<YieldTermStructure> yieldCurve(
 		boost::make_shared<PiecewiseYieldCurve<Discount, LogLinear>>(referenceDate, rateHelpers, dayCounter));
 
-	// Create and price swap
-	Period swapTenor(5, Years);
+	// Create swap
+	Period swapTenor(15, Years);
 	iborIndex = boost::make_shared<Euribor6M>(yieldCurve);
 	Rate fixedRate = 0.0325;
 	Period forwardStart(0, Days);
 	boost::shared_ptr<VanillaSwap> swap = MakeVanillaSwap(swapTenor, iborIndex, fixedRate, forwardStart);
+
+	// Price swap and time
+	timer.start();
 	swapNpv[0] = swap->NPV();
+	timer.stop();
+	timings["pricing"] = timer.elapsed();
 
 	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
 	cl::tape_function<double> f(marketRates, swapNpv);
 
-	// Calculate d(swapNpv) / d(z_i) for i = 1, ..., nZeros
+	// Calculate and time d(swapNpv) / d(z_i) for i = 1, ..., nZeros
 	// ... with forward mode
 	Size nQuotes = marketRates.size();
 	vector<double> dZ(nQuotes, 0.0);
 	vector<double> forwardDerivs(nQuotes, 0.0);
+	timer.start();
 	for (Size i = 0; i < nQuotes; ++i) {
 		dZ[i] = 1.0;
 		forwardDerivs[i] = f.Forward(1, dZ)[0];
 		dZ[i] = 0.0;
 
 	}
+	timer.stop();
+	timings["forward"] = timer.elapsed();
+	
 	// ... with reverse mode
+	timer.start();
 	vector<double> reverseDerivs = f.Reverse(1, vector<double>(1, 1.0));
+	timer.stop();
+	timings["reverse"] = timer.elapsed();
 
-	// Calculate the derivatives by finite difference i.e. bump each zero in turn
+	// Calculate the derivatives by one-sided finite difference
 	Real basisPoint = 0.0001;
 	vector<Real> oneSidedDiffs(nQuotes, 0.0);
-	vector<Real> twoSidedDiffs(nQuotes, 0.0);
+	timer.start();
 	for (Size i = 0; i < nQuotes; ++i) {
 		// Up 1 bp
 		marketQuotes[i]->setValue(marketRates[i] + basisPoint);
 		oneSidedDiffs[i] = (swap->NPV() - swapNpv[0]) / basisPoint;
-		// Down 1 bp
-		marketQuotes[i]->setValue(marketRates[i] - basisPoint);
-		twoSidedDiffs[i] = (oneSidedDiffs[i] - (swap->NPV() - swapNpv[0]) / basisPoint) / 2.0;
 		// Reset to original curve
 		marketQuotes[i]->setValue(marketRates[i]);
 	}
+	timer.stop();
+	timings["one-sided FD"] = timer.elapsed();
+
+	// Calculate the derivatives by one-sided finite difference
+	// Could re-use one-sided derivs above but do it again for timings
+	vector<Real> twoSidedDiffs(nQuotes, 0.0);
+	Real upNpv = 0.0;
+	timer.start();
+	for (Size i = 0; i < nQuotes; ++i) {
+		// Up 1 bp
+		marketQuotes[i]->setValue(marketRates[i] + basisPoint);
+		upNpv = swap->NPV();
+		// Down 1 bp
+		marketQuotes[i]->setValue(marketRates[i] - basisPoint);
+		twoSidedDiffs[i] = (upNpv - swap->NPV()) / 2.0 / basisPoint;
+		// Reset to original curve
+		marketQuotes[i]->setValue(marketRates[i]);
+	}
+	timer.stop();
+	timings["two-sided FD"] = timer.elapsed();
 
 	// Output the results
 	boost::format headerFmter("%-12s|%=16s|%=16s|%=16s|%=16s");
@@ -124,6 +163,9 @@ void runExample_3() {
 		cout << fmter % (i + 1) % forwardDerivs[i] % reverseDerivs[i] % oneSidedDiffs[i] % twoSidedDiffs[i] << endl;
 	}
 	cout << endl;
+
+	// Output the timings in a table
+	printTimings(timings);
 
 	// Output some properties of the tape sequence
 	printProperties<double>(f);
