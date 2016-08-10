@@ -48,8 +48,10 @@ void runExample_3() {
 	vector<Natural> fraStartMonths{ 6, 12 };
 	vector<Period> swapTenors{ 2*Years, 5*Years, 7*Years, 10*Years, 20*Years };
 
+#ifdef QL_ADJOINT
 	// Start taping with zeroRates as independent variable
 	cl::Independent(marketRates);
+#endif
 
 	// Set up bootstrapped yield curve
 	vector<boost::shared_ptr<RateHelper>> rateHelpers;
@@ -92,14 +94,18 @@ void runExample_3() {
 	timer.stop();
 	timings["pricing"] = timer.elapsed();
 
+#ifdef QL_ADJOINT
 	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
 	cl::tape_function<double> f(marketRates, swapNpv);
+#endif
 
 	// Calculate and time d(swapNpv) / d(z_i) for i = 1, ..., nZeros
 	// ... with forward mode
 	Size nQuotes = marketRates.size();
-	vector<double> dZ(nQuotes, 0.0);
 	vector<double> forwardDerivs(nQuotes, 0.0);
+	vector<double> reverseDerivs(nQuotes, 0.0);
+#ifdef QL_ADJOINT
+	vector<double> dZ(nQuotes, 0.0);
 	timer.start();
 	for (Size i = 0; i < nQuotes; ++i) {
 		dZ[i] = 1.0;
@@ -109,12 +115,13 @@ void runExample_3() {
 	}
 	timer.stop();
 	timings["forward"] = timer.elapsed();
-	
+
 	// ... with reverse mode
 	timer.start();
-	vector<double> reverseDerivs = f.Reverse(1, vector<double>(1, 1.0));
+	reverseDerivs = f.Reverse(1, vector<double>(1, 1.0));
 	timer.stop();
 	timings["reverse"] = timer.elapsed();
+#endif
 
 	// Calculate the derivatives by one-sided finite difference
 	Real basisPoint = 0.0001;
@@ -167,6 +174,8 @@ void runExample_3() {
 	// Output the timings in a table
 	printTimings(timings);
 
+#ifdef QL_ADJOINT
 	// Output some properties of the tape sequence
 	printProperties<double>(f);
+#endif
 }

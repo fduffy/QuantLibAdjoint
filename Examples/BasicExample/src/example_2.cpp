@@ -31,8 +31,10 @@ void runExample_2() {
 		Date(3, Aug, 2021), Date(3, Aug, 2026) };
 	vector<Rate> swapNpv(1, 0.0);
 
+#ifdef QL_ADJOINT
 	// Start taping with zeroRates as independent variable
 	cl::Independent(zeroRates);
+#endif
 
 	// Set up linearly interpolated zero curve
 	RelinkableHandle<YieldTermStructure> zeroCurve(boost::make_shared<ZeroCurve>(zeroDates, zeroRates, dayCounter));
@@ -45,14 +47,18 @@ void runExample_2() {
 	boost::shared_ptr<VanillaSwap> swap = MakeVanillaSwap(swapTenor, iborIndex, fixedRate, forwardStart);
 	swapNpv[0] = swap->NPV();
 
+#ifdef QL_ADJOINT
 	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
 	cl::tape_function<double> f(zeroRates, swapNpv);
+#endif
 
 	// Calculate d(swapNpv) / d(z_i) for i = 1, ..., nZeros
 	// ... with forward mode
 	Size nZeros = zeroRates.size();
-	vector<double> dZ(nZeros, 0.0);
 	vector<double> forwardDerivs(nZeros, 0.0);
+	vector<double> reverseDerivs(nZeros, 0.0);
+#ifdef QL_ADJOINT
+	vector<double> dZ(nZeros, 0.0);
 	for (Size i = 0; i < nZeros; ++i) {
 		dZ[i] = 1.0;
 		forwardDerivs[i] = f.Forward(1, dZ)[0];
@@ -60,7 +66,8 @@ void runExample_2() {
 
 	}
 	// ... with reverse mode
-	vector<double> reverseDerivs = f.Reverse(1, vector<double>(1, 1.0));
+	reverseDerivs = f.Reverse(1, vector<double>(1, 1.0));
+#endif
 
 	// Calculate the derivatives by finite difference i.e. bump each zero in turn
 	Real basisPoint = 0.0001;
@@ -96,6 +103,8 @@ void runExample_2() {
 	}
 	cout << endl;
 
+#ifdef QL_ADJOINT
 	// Output some properties of the tape sequence
 	printProperties<double>(f);
+#endif
 }

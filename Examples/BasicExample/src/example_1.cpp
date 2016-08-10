@@ -29,8 +29,11 @@ void runExample_1() {
 	vector<Rate> zeroRate(1, 0.02);
 	vector<Rate> swapNpv(1, 0.0);
 
+#ifdef QL_ADJOINT
 	// Start taping with zeroRate as independent variable and set up flat zero curve
 	cl::Independent(zeroRate);
+#endif
+
 	boost::shared_ptr<SimpleQuote> pZeroQuote = boost::make_shared<SimpleQuote>(zeroRate[0]);
 	Handle<Quote> zeroQuote(pZeroQuote);
 	Handle<YieldTermStructure> flatCurve(boost::make_shared<FlatForward>(referenceDate, zeroQuote, dayCounter));
@@ -44,13 +47,17 @@ void runExample_1() {
 	boost::shared_ptr<VanillaSwap> swap = MakeVanillaSwap(swapTenor, iborIndex, fixedRate, forwardStart);
 	swapNpv[0] = swap->NPV();
 
+	double forwardDeriv = 0.0;
+	double reverseDeriv = 0.0;
+#ifdef QL_ADJOINT
 	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
 	cl::tape_function<double> f(zeroRate, swapNpv);
 
 	// Calculate d(swapNpv) / d(zero) with forward and reverse mode
 	vector<double> dZ(1, 1.0);
-	double forwardDeriv = f.Forward(1, dZ)[0];
-	double reverseDeriv = f.Reverse(1, dZ)[0];
+	forwardDeriv = f.Forward(1, dZ)[0];
+	reverseDeriv = f.Reverse(1, dZ)[0];
+#endif
 
 	// Calculate analytically the derivative
 	Real derivative = 0.0;
@@ -88,6 +95,8 @@ void runExample_1() {
 	cout << fmter % "Two-sided FD" % twoSidedDiff;
 	cout << endl;
 
+#ifdef QL_ADJOINT
 	// Output some properties of the tape sequence
 	printProperties<double>(f);
+#endif
 }
