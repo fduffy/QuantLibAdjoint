@@ -15,24 +15,30 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="basicexample.cpp">
+    <ClCompile Include="src\basicexample.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="example_1.cpp">
+    <ClCompile Include="src\example_1.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="example_2.cpp">
+    <ClCompile Include="src\example_2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\example_3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="example_1.hpp">
+    <ClInclude Include="src\example_1.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="example_2.hpp">
+    <ClInclude Include="src\example_2.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="utilities.hpp">
+    <ClInclude Include="src\utilities.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\example_3.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

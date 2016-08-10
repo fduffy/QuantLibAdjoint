@@ -1,5 +1,4 @@
-/* runExample_1 implementation
-*/
+// runExample_1 implementation
 
 #include "example_1.hpp"
 #include "utilities.hpp"

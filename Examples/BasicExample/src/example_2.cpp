@@ -1,5 +1,4 @@
-/* runExample_2 implementation
-*/
+// runExample_2 implementation
 
 #include "example_2.hpp"
 #include "utilities.hpp"
