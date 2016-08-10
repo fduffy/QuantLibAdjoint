@@ -18,11 +18,6 @@ using std::vector;
 using std::string;
 using std::cout;
 using std::endl;
-using std::setw;
-using std::left;
-using std::ios;
-using std::size_t;
-using CppAD::thread_alloc;
 
 void runExample_2() {
 

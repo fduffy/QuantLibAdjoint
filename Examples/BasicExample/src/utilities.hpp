@@ -8,6 +8,7 @@
 
 using namespace QuantLib;
 using std::ostringstream;
+using CppAD::thread_alloc;
 
 // Print out properties of the tape sequence in a formatted table
 template <typename Base>
