@@ -2,6 +2,7 @@
 */
 
 #include "example_2.hpp"
+#include "utilities.hpp"
 
 #include <ql/indexes/ibor/euribor.hpp>
 #include <ql/instruments/makevanillaswap.hpp>
@@ -29,8 +30,6 @@ void runExample_2() {
 	Date referenceDate(3, Aug, 2016);
 	Settings::instance().evaluationDate() = referenceDate;
 	Actual365Fixed dayCounter;
-
-	// Example 2
 
 	// These will be the X (independent) and Y (dependent) vectors. f: R^5 -> R.
 	vector<Rate> zeroRates{ 0.02, 0.025, 0.0275, 0.03, 0.035 };
@@ -104,22 +103,5 @@ void runExample_2() {
 	cout << endl;
 
 	// Output some properties of the tape sequence
-	Size size = 0;
-	vector<string> properties{ "f.size_op()", "f.size_op_arg()", "f.size_par()", "f.size_text()", "f.size_VecAD()" };
-	vector<Size> numbers{ f.size_op(), f.size_op_arg(), f.size_par(), f.size_text(), f.size_VecAD() };
-	vector<Size> sizes{ sizeof(CppAD::OpCode), sizeof(CPPAD_TAPE_ADDR_TYPE),
-		sizeof(double), sizeof(char), sizeof(CPPAD_TAPE_ADDR_TYPE) };
-
-	cout << "Some properties of the tape sequence:" << endl;
-	cout << endl;
-	cout << setw(17) << left << "f.size_op_seq()" << f.size_op_seq() << "B" << endl;
-	for (Size i = 0; i < properties.size(); ++i) {
-		cout << setw(17) << left << properties[i] << numbers[i] << " x " << sizes[i] << " = "
-			<< numbers[i] * sizes[i] << "B" << endl;
-		size += numbers[i] * sizes[i];
-	}
-	cout << setw(17) << left << "Total" << size << "B" << endl;
-
-	Size thread = thread_alloc::thread_num();
-	cout << setw(17) << left << "Total (in use)" << thread_alloc::inuse(thread) << "B" << endl;
+	printProperties<double>(f);
 }
