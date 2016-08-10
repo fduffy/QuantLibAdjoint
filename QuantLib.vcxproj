@@ -489,6 +489,7 @@
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ql\ad.hpp" />
     <ClInclude Include="ql\experimental\finitedifferences\bsmrndcalculator.hpp" />
     <ClInclude Include="ql\experimental\finitedifferences\fdmhestongreensfct.hpp" />
     <ClInclude Include="ql\experimental\finitedifferences\fdmlocalvolfwdop.hpp" />
