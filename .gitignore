@@ -101,4 +101,5 @@ test-suite/bin/*.pdb
 test-suite/.unit_test_profile.txt
 bin/
 
-
+# Any folder called output
+**/output/
