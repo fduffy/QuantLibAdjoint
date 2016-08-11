@@ -4,6 +4,7 @@
 #include "example_1.hpp"
 #include "example_2.hpp"
 #include "example_3.hpp"
+#include "example_4.hpp"
 
 #include <ql/errors.hpp>
 #include <ql/types.hpp>
@@ -49,6 +50,9 @@ int main(int argc, char* argv[]) {
 			break;
 		case 3:
 			runExample_3();
+			break;
+		case 4:
+			runExample_4();
 			break;
 		default:
 			QL_FAIL("The example with example index " << exampleIndex << " does not exist.");

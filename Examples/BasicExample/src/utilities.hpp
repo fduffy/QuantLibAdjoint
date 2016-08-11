@@ -1,11 +1,13 @@
 #pragma once
 
+#include <ql/instruments/vanillaswap.hpp>
 #include <ql/types.hpp>
 
 #include <boost/format.hpp>
 #include <boost/timer/timer.hpp>
 
 #include <map>
+#include <vector>
 #include <sstream>
 
 using namespace QuantLib;
@@ -15,6 +17,7 @@ using boost::timer::format;
 using std::cout;
 using std::ostringstream;
 using std::map;
+using std::vector;
 using std::string;
 
 // Only if building with AD enabled
@@ -51,3 +54,6 @@ void printProperties(const cl::tape_function<Base>& f) {
 #endif
 
 void printTimings(const map<string, cpu_times>& timings);
+
+vector<boost::shared_ptr<VanillaSwap>> makePortfolio(Size nSwaps, const Period& swapTenor, 
+	const boost::shared_ptr<IborIndex>& iborIndex);
