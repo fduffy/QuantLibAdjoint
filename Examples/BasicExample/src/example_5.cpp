@@ -50,7 +50,7 @@ void runExample_5() {
 	// Print out the header
 	cout << "Portfolio Size,Pricing(s),Jacobian(s),One-sided(s),Two-sided(s),Tape Size(B)\n";
 
-	for (Size k = 0; k < 10; ++k) {
+	for (Size k = 0; k < 19; ++k) {
 #ifdef QL_ADJOINT
 		// Start taping with zeroRates as independent variable
 		cl::Independent(marketRates);
@@ -89,7 +89,12 @@ void runExample_5() {
 		Size nSwaps;
 		iborIndex = boost::make_shared<Euribor6M>(yieldCurve);
 
-		nSwaps = (k + 1) * 10;
+		// nSwaps 10, 20,..., 100, 200,..., 1000
+		if (k < 10)
+			nSwaps = (k + 1) * 10;
+		else
+			nSwaps = (k - 8) * 100;
+
 		vector<boost::shared_ptr<VanillaSwap>> portfolio = makePortfolio(nSwaps, 15 * Years, iborIndex);
 
 		// Price portfolio and time
@@ -126,14 +131,14 @@ void runExample_5() {
 		Real basisPoint = 0.0001;
 		vector<Real> oneSidedDiffs(nSwaps * nQuotes, 0.0);
 		timer.start();
-		for (Size i = 0; i < nSwaps; ++i) {
-			for (Size j = 0; j < nQuotes; ++j) {
-				// Up 1 bp
-				marketQuotes[j]->setValue(marketRates[j] + basisPoint);
+		for (Size j = 0; j < nQuotes; ++j) {
+			// Up 1 bp
+			marketQuotes[j]->setValue(marketRates[j] + basisPoint);
+			for (Size i = 0; i < nSwaps; ++i) {
 				oneSidedDiffs[i * nQuotes + j] = (portfolio[i]->NPV() - swapNpv[i]) / basisPoint;
-				// Reset to original curve
-				marketQuotes[j]->setValue(marketRates[j]);
 			}
+			// Reset to original curve
+			marketQuotes[j]->setValue(marketRates[j]);
 		}
 		timer.stop();
 		cout << "," << format(timer.elapsed(), 6, "%w");
@@ -141,19 +146,21 @@ void runExample_5() {
 		// Calculate the derivatives by one-sided finite difference
 		// Could re-use one-sided derivs above but do it again for timings
 		vector<Real> twoSidedDiffs(nSwaps * nQuotes, 0.0);
-		Real upNpv = 0.0;
+		vector<Real> upNpv(nSwaps, 0.0);
 		timer.start();
-		for (Size i = 0; i < nSwaps; ++i) {
-			for (Size j = 0; j < nQuotes; ++j) {
-				// Up 1 bp
-				marketQuotes[j]->setValue(marketRates[j] + basisPoint);
-				upNpv = portfolio[i]->NPV();
-				// Down 1 bp
-				marketQuotes[j]->setValue(marketRates[j] - basisPoint);
-				twoSidedDiffs[i * nQuotes + j] = (upNpv - portfolio[i]->NPV()) / 2.0 / basisPoint;
-				// Reset to original curve
-				marketQuotes[j]->setValue(marketRates[j]);
+		for (Size j = 0; j < nQuotes; ++j) {
+			// Up 1 bp
+			marketQuotes[j]->setValue(marketRates[j] + basisPoint);
+			for (Size i = 0; i < nSwaps; ++i) {
+				upNpv[i] = portfolio[i]->NPV();
 			}
+			// Down 1 bp
+			marketQuotes[j]->setValue(marketRates[j] - basisPoint);
+			for (Size i = 0; i < nSwaps; ++i) {
+				twoSidedDiffs[i * nQuotes + j] = (upNpv[i] - portfolio[i]->NPV()) / 2.0 / basisPoint;
+			}
+			// Reset to original curve
+			marketQuotes[j]->setValue(marketRates[j]);
 		}
 		timer.stop();
 		cout << "," << format(timer.elapsed(), 6, "%w");
@@ -165,22 +172,25 @@ void runExample_5() {
 #endif
 
 		// Output the results to file
-		// Size idx = 0;
-		// string filename = "../output/portfolio_" + std::to_string(nSwaps) + ".txt";
-		// ofstream ofs(filename);
-		// QL_REQUIRE(ofs.is_open(), "Could not open file " << filename);
+		//if (nSwaps == 1000) {
+		//	Size idx = 0;
+		//	string filename = "../output/portfolio_" + std::to_string(nSwaps) + ".txt";
+		//	ofstream ofs(filename);
+		//	QL_REQUIRE(ofs.is_open(), "Could not open file " << filename);
 
-		// //  ...header
-		// boost::format fmter("%s,%s,%s,%s");
-		// ofs << fmter % "Derivative" % "Jacobian" % "One FD" % "Two FD" << endl;
+		//	// ...header
+		//	boost::format fmter("%s,%s,%s,%s");
+		//	ofs << fmter % "Derivative" % "Jacobian" % "One FD" % "Two FD" << endl;
 
-		// //  ...table
-		// fmter = boost::format("dV_%d/dq_%d,%.8f,%.8f,%.8f");
-		// for (Size i = 0; i < nSwaps; ++i) {
-		// 	for (Size j = 0; j < nQuotes; ++j) {
-		// 		idx = i * nQuotes + j;
-		// 		ofs << fmter % i % j % jac[idx] % oneSidedDiffs[idx] % twoSidedDiffs[idx] << endl;
-		// 	}
-		// }
+		//	// ...table
+		//	fmter = boost::format("dV_%d/dq_%d,%.8f,%.8f,%.8f");
+		//	for (Size i = 0; i < nSwaps; ++i) {
+		//		for (Size j = 0; j < nQuotes; ++j) {
+		//			idx = i * nQuotes + j;
+		//			ofs << fmter % i % j % jac[idx] % oneSidedDiffs[idx] % twoSidedDiffs[idx] << endl;
+		//		}
+		//	}
+		//}
+		
 	}
 }
