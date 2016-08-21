@@ -30,8 +30,7 @@
 #include <ql/termstructures/bootstraphelper.hpp>
 #include <ql/termstructures/bootstraperror.hpp>
 #include <ql/math/interpolations/linearinterpolation.hpp>
-#include <ql/math/solvers1d/finitedifferencenewtonsafe.hpp>
-#include <ql/math/solvers1d/brent.hpp>
+#include <ql/math/solvers1d/bisection.hpp>
 #include <ql/utilities/dataformatters.hpp>
 
 namespace QuantLib {
@@ -49,8 +48,8 @@ namespace QuantLib {
         void initialize() const;
         Curve* ts_;
         Size n_;
-        Brent firstSolver_;
-        FiniteDifferenceNewtonSafe solver_;
+        Bisection firstSolver_;
+        Bisection solver_;
         mutable bool initialized_, validCurve_, loopRequired_;
         mutable Size firstAliveHelper_, alive_;
         mutable std::vector<Real> previousData_;
