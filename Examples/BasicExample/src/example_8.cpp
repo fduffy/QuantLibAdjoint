@@ -47,10 +47,8 @@ void runExample_8() {
 	vector<Period> swapTenors{ 1 * Years, 2 * Years, 5 * Years, 7 * Years, 10 * Years, 20 * Years };
 
 	// Set up bootstrapped yield curve
-	boost::shared_ptr<SwapRateHelper> temp;
 	vector<boost::shared_ptr<RateHelper>> rateHelpers;
 	vector<boost::shared_ptr<SimpleQuote>> marketQuotes;
-	vector<boost::shared_ptr<VanillaSwap>> inputSwaps;
 
 #ifdef QL_ADJOINT
 	// Start taping with discounts as independent variable
@@ -61,9 +59,7 @@ void runExample_8() {
 	for (Size i = 0; i < nQuotes; ++i) {
 		marketQuotes.push_back(boost::make_shared<SimpleQuote>(marketRates[i]));
 		swapIndex = boost::make_shared<EuriborSwapIsdaFixA>(swapTenors[i]);
-		temp = boost::make_shared<SwapRateHelper>(Handle<Quote>(marketQuotes[i]), swapIndex);
-		rateHelpers.push_back(temp);
-		inputSwaps.push_back(temp->swap());
+		rateHelpers.push_back(boost::make_shared<SwapRateHelper>(Handle<Quote>(marketQuotes[i]), swapIndex));
 	}
 
 	// Create yield curve
@@ -112,8 +108,9 @@ void runExample_8() {
 	vector<Real> swapFairRates(nQuotes, 0.0);
 	timer.start();
 	for (Size i = 0; i < nQuotes; ++i) {
-		inputSwaps[i]->setPricingEngine(engine);
-		swapFairRates[i] = inputSwaps[i]->fairRate();
+		rateHelpers[i]->setTermStructure((*yts).get());
+		boost::shared_ptr<SwapRateHelper> swapRateHelper = boost::dynamic_pointer_cast<SwapRateHelper>(rateHelpers[i]);
+		swapFairRates[i] = swapRateHelper->swap()->fairRate();
 	}
 	timer.stop();
 
@@ -125,7 +122,7 @@ void runExample_8() {
 	// Calculate the Jacobian of input instrument fair rates wrt zero rates and invert
 	vector<double> jac(nQuotes * nDiscounts, 0.0);
 #ifdef QL_ADJOINT
-	// Point at which to evaluate Jacobian = ??
+	// Point at which to evaluate Jacobian 
 	vector<double> x_0(nDiscounts);
 	for (Size j = 0; j < nDiscounts; ++j) {
 		x_0[j] = Value(discounts[j].value());
