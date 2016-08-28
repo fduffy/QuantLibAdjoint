@@ -116,12 +116,20 @@ void runExample_9() {
 	vector<Period> expiries{ 5 * Years, 10 * Years, 15 * Years, 20 * Years };
 	vector<Period> tenors{ 20 * Years, 15 * Years, 10 * Years, 5 * Years };
 	vector<Volatility> volatilities{ 0.18, 0.16, 0.14, 0.12 };
+	Size numVols = expiries.size();
+
+#ifdef QL_ADJOINT
+	// Start taping with input market volatilities as independent variable
+	// We will want to avoid this but done here for comparison
+	cl::Independent(volatilities);
+#endif
 
 	// 2. Create the calibration helpers
-	vector<boost::shared_ptr<CalibrationHelper>> swaptions(expiries.size());
-	for (Size i = 0; i < expiries.size(); ++i) {
-		boost::shared_ptr<Quote> vol = boost::make_shared<SimpleQuote>(volatilities[i]);
-		swaptions[i] = boost::make_shared<SwaptionHelper>(expiries[i], tenors[i], Handle<Quote>(vol),
+	vector<boost::shared_ptr<CalibrationHelper>> swaptions(numVols);
+	vector<boost::shared_ptr<SimpleQuote>> volQuotes(numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		volQuotes[i] = boost::make_shared<SimpleQuote>(volatilities[i]);
+		swaptions[i] = boost::make_shared<SwaptionHelper>(expiries[i], tenors[i], Handle<Quote>(volQuotes[i]),
 			iborIndex, fixedLegTenor, fixedLegDayCounter, iborIndex->dayCounter(), yts);
 	}
 
@@ -136,18 +144,17 @@ void runExample_9() {
 	for (Size i = 0; i < swaptions.size(); i++) {
 		swaptions[i]->setPricingEngine(boost::make_shared<Gaussian1dJamshidianSwaptionEngine>(gsr));
 	}
-	cout << "Starting calibration ...\n";
+	cout << "Starting calibration ...\n\n";
 	timer.start();
 	gsr->calibrateVolatilitiesIterative(swaptions, optMethod, endCriteria);
 	timer.stop();
-	cout << "Calibration finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
 	// Output the calibration results
-	boost::format fmter("%=11s|%=11s|%=11s|%=11s|%=11s|%=11s\n");
+	boost::format fmter("  %=11s|%=11s|%=11s|%=11s|%=11s|%=11s\n");
 	cout << fmter % "Expiry" % "Tenor" % "In Vol" % "Model NPV" % "Implied" % "Diff";
-	string rule(fmter.str().length(), '=');
-	cout << rule << "\n";
-	fmter = boost::format("%=11s|%=11s|%=11.7f|%=11.7f|%=11.7f|%=11.7f\n");
+	string rule(fmter.str().length() - 2, '=');
+	cout << "  " << rule << "\n";
+	fmter = boost::format("  %=11s|%=11s|%=11.7f|%=11.7f|%=11.7f|%=11.7f\n");
 	for (Size i = 0; i < swaptions.size(); ++i) {
 		Real npv = swaptions[i]->modelValue();
 		Volatility implied = swaptions[i]->impliedVolatility(npv, 1e-4, 1000, 0.05, 0.50);
@@ -157,6 +164,7 @@ void runExample_9() {
 			npv % implied % diff;
 	}
 	cout << endl;
+	cout << "Calibration finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
 	// Price the Bermudan
 	int integrationPoints = 128;
@@ -166,7 +174,51 @@ void runExample_9() {
 	bermudanSwaption.setPricingEngine(boost::make_shared<Gaussian1dSwaptionEngine>(gsr, integrationPoints));
 	bermudanNpv[0] = bermudanSwaption.NPV();
 	timer.stop();
+	fmter = boost::format("%.7f");
+	cout << "  Bermudan swaption value: " << fmter % (bermudanNpv[0] / nominal) << "\n";
 	cout << "Valuation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
-	fmter = boost::format("%.7f\n");
-	cout << "Bermudan swaption value: " << fmter % (bermudanNpv[0] / nominal);
+
+	// Calculate the Jacobian of bermudan wrt input market volatilities
+	vector<double> jac(numVols, 0.0);
+	cout << "Starting Jacobian evaluation ...\n";
+	timer.start();
+#ifdef QL_ADJOINT
+	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
+	cl::tape_function<double> f(volatilities, bermudanNpv);
+
+	// Calculate the Jacobian dNpv / dv_i for each input volatility
+	vector<double> v_0(numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		v_0[i] = Value(volatilities[i].value());
+	}
+	jac = f.Jacobian(v_0);
+#endif
+	timer.stop();
+	fmter = boost::format(" %.7f ");
+	cout << "  Jacobian: [";
+	for (Size i = 0; i < numVols; ++i)
+		cout << fmter % jac[i];
+	cout << "]\n";
+	cout << "Jacobian evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+
+	// Calculate the vegas by one-sided finite difference
+	Real delta = 0.0001;
+	vector<Real> oneSidedDiffs(numVols, 0.0);
+	cout << "Starting 1-sided FD evaluation ...\n";
+	timer.start();
+	for (Size i = 0; i < numVols; ++i) {
+		// Shift input volatility up by delta
+		volQuotes[i]->setValue(volatilities[i] + delta);
+		gsr->calibrateVolatilitiesIterative(swaptions, optMethod, endCriteria);
+		oneSidedDiffs[i] = (bermudanSwaption.NPV() - bermudanNpv[0]) / delta;
+		// Reset to original volatility
+		volQuotes[i]->setValue(volatilities[i]);
+	}
+	timer.stop();
+	cout << "  1-sided FD: [";
+	for (Size i = 0; i < numVols; ++i)
+		cout << fmter % oneSidedDiffs[i];
+	cout << "]\n";
+	cout << "1-sided FD evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+
 }
