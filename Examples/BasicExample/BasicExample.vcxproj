@@ -1054,6 +1054,7 @@
     <ClCompile Include="src\example_6.cpp" />
     <ClCompile Include="src\example_7.cpp" />
     <ClCompile Include="src\example_8.cpp" />
+    <ClCompile Include="src\example_9.cpp" />
     <ClCompile Include="src\utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -1071,6 +1072,7 @@
     <ClInclude Include="src\example_6.hpp" />
     <ClInclude Include="src\example_7.hpp" />
     <ClInclude Include="src\example_8.hpp" />
+    <ClInclude Include="src\example_9.hpp" />
     <ClInclude Include="src\utilities.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
