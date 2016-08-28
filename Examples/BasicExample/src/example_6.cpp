@@ -8,6 +8,7 @@
 #include <boost/make_shared.hpp>
 
 #include <iostream>
+#include <vector>
 #include <iomanip>
 
 using QuantLib::Real;
