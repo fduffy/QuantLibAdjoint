@@ -106,7 +106,10 @@ void runExample_9() {
 	const vector<boost::shared_ptr<CashFlow> >& leg = swap->fixedLeg();
 	for (Size i = 0; i < leg.size() - 1; i += 5) {
 		boost::shared_ptr<Coupon> coupon = boost::dynamic_pointer_cast<Coupon>(leg[i]);
-		bermudanDates.push_back(coupon->accrualStartDate());
+		// May need to adjust exercise to good business day
+		Date exerciseDate = coupon->accrualStartDate();
+		exerciseDate = calendar.adjust(exerciseDate);
+		bermudanDates.push_back(exerciseDate);
 	}
 	boost::shared_ptr<Exercise> bermudanExercise = boost::make_shared<BermudanExercise>(bermudanDates);
 	Swaption bermudanSwaption(swap, bermudanExercise);
