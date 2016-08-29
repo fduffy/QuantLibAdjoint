@@ -118,9 +118,10 @@ void runExample_9() {
 	vector<Volatility> volatilities{ 0.18, 0.16, 0.14, 0.12 };
 	Size numVols = expiries.size();
 
+	vector<Real> helperNpv(numVols, 0.0);
+	vector<double> dhelperNpvdvol(numVols * numVols, 0.0);
 #ifdef QL_ADJOINT
-	// Start taping with input market volatilities as independent variable
-	// We will want to avoid this but done here for comparison
+	// Start taping with input market volatilities for dHelper / dvol
 	cl::Independent(volatilities);
 #endif
 
@@ -143,14 +144,43 @@ void runExample_9() {
 	EndCriteria endCriteria(400, 100, 1.0e-8, 1.0e-8, 1.0e-8);
 	for (Size i = 0; i < swaptions.size(); i++) {
 		swaptions[i]->setPricingEngine(boost::make_shared<Gaussian1dJamshidianSwaptionEngine>(gsr));
+		helperNpv[i] = swaptions[i]->marketValue();
 	}
+
+	cout << "Starting dHelperNpv / dvol evaluation ...\n";
+	timer.start();
+#ifdef QL_ADJOINT
+	// Stop taping
+	cl::tape_function<double> fnHelperNpv(volatilities, helperNpv);
+
+	// Calculate the Jacobian dHelperNpv / dvol for each input volatility
+	vector<double> v_0(numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		v_0[i] = Value(volatilities[i].value());
+	}
+	dhelperNpvdvol = fnHelperNpv.Jacobian(v_0);
+#endif
+	timer.stop();
+	Size idx = 0;
+	boost::format fmter = boost::format(" %+.7f ");
+	cout << "  dHelperNpv / dvol:\n";
+	for (Size i = 0; i < numVols; ++i) {
+		cout << "    |";
+		for (Size j = 0; j < numVols; ++j) {
+			idx = i * numVols + j;
+			cout << fmter % dhelperNpvdvol[idx];
+		}
+		cout << "|\n";
+	}
+	cout << "dHelperNpv / dvol evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+
 	cout << "Starting calibration ...\n\n";
 	timer.start();
 	gsr->calibrateVolatilitiesIterative(swaptions, optMethod, endCriteria);
 	timer.stop();
 
 	// Output the calibration results
-	boost::format fmter("  %=11s|%=11s|%=11s|%=11s|%=11s|%=11s\n");
+	fmter = boost::format("  %=11s|%=11s|%=11s|%=11s|%=11s|%=11s\n");
 	cout << fmter % "Expiry" % "Tenor" % "In Vol" % "Model NPV" % "Implied" % "Diff";
 	string rule(fmter.str().length() - 2, '=');
 	cout << "  " << rule << "\n";
@@ -166,6 +196,17 @@ void runExample_9() {
 	cout << endl;
 	cout << "Calibration finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
+	// Reset the GSR with the result of the calibration i.e. calibrated volatilites
+	// Do this so we can tape wrt the calibrated volatilites
+	Array tempVols = gsr->volatility();
+	vector<Real> calibratedVols(tempVols.begin(), tempVols.end());
+	Size numSigmas = calibratedVols.size();
+#ifdef QL_ADJOINT
+	// Start taping with calibrated volatilities for dBermudan / dsigma
+	cl::Independent(calibratedVols);
+#endif
+	gsr = boost::make_shared<Gsr>(yts, bermudanDates, calibratedVols, reversion);
+
 	// Price the Bermudan
 	int integrationPoints = 128;
 	vector<Real> bermudanNpv(1, 0.0);
@@ -178,32 +219,72 @@ void runExample_9() {
 	cout << "  Bermudan swaption value: " << fmter % (bermudanNpv[0] / nominal) << "\n";
 	cout << "Valuation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
-	// Calculate the Jacobian of bermudan wrt input market volatilities
-	vector<double> jac(numVols, 0.0);
-	cout << "Starting Jacobian evaluation ...\n";
+	// Calculate the Jacobian of bermudan wrt calibrated volatilities i.e. sigmas
+	vector<double> dBermudandsigma(numSigmas, 0.0);
+	cout << "Starting dBermudan / dsigma evaluation ...\n";
 	timer.start();
 #ifdef QL_ADJOINT
-	// Stop taping and transfer operation sequence to function f (ultimately an AD function object)
-	cl::tape_function<double> f(volatilities, bermudanNpv);
+	// Stop taping
+	cl::tape_function<double> fnBermudan(calibratedVols, bermudanNpv);
 
-	// Calculate the Jacobian dNpv / dv_i for each input volatility
-	vector<double> v_0(numVols);
-	for (Size i = 0; i < numVols; ++i) {
-		v_0[i] = Value(volatilities[i].value());
+	// Calculate the Jacobian dBermudan / dsigma
+	vector<double> sigma_0(numSigmas);
+	for (Size i = 0; i < numSigmas; ++i) {
+		sigma_0[i] = Value(calibratedVols[i].value());
 	}
-	jac = f.Jacobian(v_0);
+	dBermudandsigma = fnBermudan.Jacobian(sigma_0);
 #endif
 	timer.stop();
 	fmter = boost::format(" %.7f ");
-	cout << "  Jacobian: [";
-	for (Size i = 0; i < numVols; ++i)
-		cout << fmter % jac[i];
+	cout << "  dBermudan / dsigma: [";
+	for (Size i = 0; i < numSigmas; ++i)
+		cout << fmter % dBermudandsigma[i];
 	cout << "]\n";
-	cout << "Jacobian evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+	cout << "dBermudan / dsigma evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+
+	// We also need the inverse of dHelper / dsigma
+	vector<Real> helperModelNpv(numVols, 0.0);
+#ifdef QL_ADJOINT
+	// Start taping with calibrated volatilities for dHelper / dsigma
+	cl::Independent(calibratedVols);
+#endif
+	gsr = boost::make_shared<Gsr>(yts, bermudanDates, calibratedVols, reversion);
+
+	// Calculate the model value of each helper
+	for (Size i = 0; i < swaptions.size(); i++) {
+		swaptions[i]->setPricingEngine(boost::make_shared<Gaussian1dJamshidianSwaptionEngine>(gsr));
+		helperModelNpv[i] = swaptions[i]->modelValue();
+	}
+
+	// Calculate the Jacobian of helper wrt sigmas
+	vector<double> dHelperdsigma(numVols * numSigmas, 0.0);
+	cout << "Starting dHelper / dsigma evaluation ...\n";
+	timer.start();
+#ifdef QL_ADJOINT
+	// Stop taping
+	cl::tape_function<double> fnHelperModelNpv(calibratedVols, helperModelNpv);
+	for (Size i = 0; i < numSigmas; ++i) {
+		sigma_0[i] = Value(calibratedVols[i].value());
+	}
+	dHelperdsigma = fnHelperModelNpv.Jacobian(sigma_0);
+#endif
+	timer.stop();
+	fmter = boost::format(" %+.7f ");
+	cout << "  dHelper / dsigma:\n";
+	for (Size i = 0; i < numVols; ++i) {
+		cout << "    |";
+		for (Size j = 0; j < numSigmas; ++j) {
+			idx = i * numSigmas + j;
+			cout << fmter % dHelperdsigma[idx];
+		}
+		cout << "|\n";
+	}
+	cout << "dHelper / dsigma evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
 	// Calculate the vegas by one-sided finite difference
 	Real delta = 0.0001;
 	vector<Real> oneSidedDiffs(numVols, 0.0);
+	bermudanSwaption.setPricingEngine(boost::make_shared<Gaussian1dSwaptionEngine>(gsr, integrationPoints));
 	cout << "Starting 1-sided FD evaluation ...\n";
 	timer.start();
 	for (Size i = 0; i < numVols; ++i) {
@@ -215,6 +296,7 @@ void runExample_9() {
 		volQuotes[i]->setValue(volatilities[i]);
 	}
 	timer.stop();
+	fmter = boost::format(" %.7f ");
 	cout << "  1-sided FD: [";
 	for (Size i = 0; i < numVols; ++i)
 		cout << fmter % oneSidedDiffs[i];
