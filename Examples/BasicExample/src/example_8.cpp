@@ -29,10 +29,6 @@ using boost::timer::cpu_times;
 
 void runExample_8() {
 
-	// Create a timer
-	cpu_timer timer;
-	timer.stop();
-
 	// Set evaluation date
 	Date referenceDate(3, Aug, 2016);
 	Settings::instance().evaluationDate() = referenceDate;
@@ -74,21 +70,19 @@ void runExample_8() {
 	Size nDiscounts = discounts.size();
 
 #ifdef QL_ADJOINT
-	// Stop taping and transfer operation sequence to function fnDiscounts (ultimately an AD function object)
+	// Stop taping
 	cl::tape_function<double> fnDiscounts(marketRates, discounts);
 #endif
 
 	// Calculate the Jacobian of discounts wrt input rates
+	// Want to avoid this
 	vector<double> jacDiscounts(nQuotes * nDiscounts, 0.0);
 #ifdef QL_ADJOINT
-	// Point at which to evaluate Jacobian = ??
 	vector<double> marketRates_0(nQuotes);
 	for (Size j = 0; j < nQuotes; ++j) {
 		marketRates_0[j] = Value(marketRates[j].value());
 	}
-	timer.start();
 	jacDiscounts = fnDiscounts.Jacobian(marketRates_0);
-	timer.stop();
 #endif
 
 #ifdef QL_ADJOINT
@@ -106,152 +100,131 @@ void runExample_8() {
 
 	// Calculate the value of input instruments as a function of the zero rates
 	vector<Real> swapFairRates(nQuotes, 0.0);
-	timer.start();
 	for (Size i = 0; i < nQuotes; ++i) {
 		rateHelpers[i]->setTermStructure((*yts).get());
 		boost::shared_ptr<SwapRateHelper> swapRateHelper = boost::dynamic_pointer_cast<SwapRateHelper>(rateHelpers[i]);
 		swapFairRates[i] = swapRateHelper->swap()->fairRate();
 	}
-	timer.stop();
 
 #ifdef QL_ADJOINT
-	// Stop taping and transfer operation sequence to function rates (ultimately an AD function object)
+	// Stop taping
 	cl::tape_function<double> rates(discounts, swapFairRates);
 #endif
 
 	// Calculate the Jacobian of input instrument fair rates wrt zero rates and invert
-	vector<double> jac(nQuotes * nDiscounts, 0.0);
+	vector<double> jacRates(nQuotes * nDiscounts, 0.0);
 #ifdef QL_ADJOINT
-	// Point at which to evaluate Jacobian 
 	vector<double> x_0(nDiscounts);
 	for (Size j = 0; j < nDiscounts; ++j) {
 		x_0[j] = Value(discounts[j].value());
 	}
-	timer.start();
-	jac = rates.Jacobian(x_0);
-	timer.stop();
+	jacRates = rates.Jacobian(x_0);
 #endif
 
-	// Print out the header
-	cout << "Portfolio Size,Pricing(s),Jacobian(s),One-sided(s),Two-sided(s),Tape Size(B)\n";
-
-	for (Size k = 0; k < 1; ++k) {
+	// Calculate Jacobian of portfolio wrt discount factors
 #ifdef QL_ADJOINT
-		// Start taping with discounts as independent variable
-		cl::Independent(discounts);
+	// Start taping with discounts as independent variable
+	cl::Independent(discounts);
 #endif
 
-		// Create the discount curve
-		vector<Real> tempDiscounts = discounts;
-		tempDiscounts.insert(tempDiscounts.begin(), 1.0);
-		yts.linkTo(boost::make_shared<DiscountCurve>(dates, tempDiscounts, dayCounter));
+	// Create the discount curve
+	tempDiscounts = discounts;
+	tempDiscounts.insert(tempDiscounts.begin(), 1.0);
+	yts.linkTo(boost::make_shared<DiscountCurve>(dates, tempDiscounts, dayCounter));
 
-		// Create portfolio of swaps linked to discount curve
-		Size nSwaps;
-		boost::shared_ptr<IborIndex> iborIndex = boost::make_shared<Euribor6M>(yts);
+	// Create portfolio of swaps linked to discount curve
+	Size nSwaps = 10;
+	boost::shared_ptr<IborIndex> iborIndex = boost::make_shared<Euribor6M>(yts);
+	vector<boost::shared_ptr<VanillaSwap>> portfolio = makePortfolio(nSwaps, 15 * Years, iborIndex);
 
-		// nSwaps 10, 20,..., 100, 200,..., 1000
-		if (k < 10)
-			nSwaps = (k + 1) * 10;
-		else
-			nSwaps = (k - 8) * 100;
-
-		vector<boost::shared_ptr<VanillaSwap>> portfolio = makePortfolio(nSwaps, 15 * Years, iborIndex);
-
-		// Price portfolio and time
-		vector<Real> swapNpv(nSwaps, 0.0);
-		timer.start();
-		for (Size i = 0; i < nSwaps; ++i) {
-			swapNpv[i] = portfolio[i]->NPV();
-		}
-		timer.stop();
-		cout << nSwaps << "," << format(timer.elapsed(), 6, "%w");
-
-#ifdef QL_ADJOINT
-		// Stop taping and transfer operation sequence to function npv (ultimately an AD function object)
-		cl::tape_function<double> npv(discounts, swapNpv);
-#endif
-
-		// Calculate and time d(swapNpv_j) / d(df_i) for i = 1,..., nDiscounts and j = 1,..., nSwaps
-		vector<double> jac(nSwaps * nDiscounts, 0.0);
-#ifdef QL_ADJOINT
-		// Point at which to evaluate Jacobian = original zero rates vector (but doubles)
-		vector<double> x_0(nDiscounts);
-		for (Size j = 0; j < nDiscounts; ++j) {
-			x_0[j] = Value(discounts[j].value());
-		}
-		timer.start();
-		jac = npv.Jacobian(x_0);
-		timer.stop();
-		cout << "," << format(timer.elapsed(), 6, "%w");
-#else
-		cout << ",0";
-#endif
-		// Calculate the derivatives by one-sided finite difference
-		yts.linkTo(yieldCurve);
-		Real basisPoint = 0.0001;
-		vector<Real> oneSidedDiffs(nSwaps * nQuotes, 0.0);
-		timer.start();
-		for (Size j = 0; j < nQuotes; ++j) {
-			// Up 1 bp
-			marketQuotes[j]->setValue(marketRates[j] + basisPoint);
-			for (Size i = 0; i < nSwaps; ++i) {
-				oneSidedDiffs[i * nQuotes + j] = (portfolio[i]->NPV() - swapNpv[i]) / basisPoint;
-			}
-			// Reset to original curve
-			marketQuotes[j]->setValue(marketRates[j]);
-		}
-		timer.stop();
-		cout << "," << format(timer.elapsed(), 6, "%w");
-
-		// Calculate the derivatives by two-sided finite difference
-		// Could re-use one-sided derivs above but do it again for timings
-		vector<Real> twoSidedDiffs(nSwaps * nQuotes, 0.0);
-		vector<Real> upNpv(nSwaps, 0.0);
-		timer.start();
-		for (Size j = 0; j < nQuotes; ++j) {
-			// Up 1 bp
-			marketQuotes[j]->setValue(marketRates[j] + basisPoint);
-			for (Size i = 0; i < nSwaps; ++i) {
-				upNpv[i] = portfolio[i]->NPV();
-			}
-			// Down 1 bp
-			marketQuotes[j]->setValue(marketRates[j] - basisPoint);
-			for (Size i = 0; i < nSwaps; ++i) {
-				twoSidedDiffs[i * nQuotes + j] = (upNpv[i] - portfolio[i]->NPV()) / 2.0 / basisPoint;
-			}
-			// Reset to original curve
-			marketQuotes[j]->setValue(marketRates[j]);
-		}
-		timer.stop();
-		cout << "," << format(timer.elapsed(), 6, "%w");
-
-#ifdef QL_ADJOINT
-		cout << "," << npv.size_op_seq() << "\n";
-#else
-		cout << ",0\n";
-#endif
-
-		// Output the results to file
-		//if (nSwaps == 1000) {
-		//	Size idx = 0;
-		//	string filename = "../output/portfolio_" + std::to_string(nSwaps) + ".txt";
-		//	ofstream ofs(filename);
-		//	QL_REQUIRE(ofs.is_open(), "Could not open file " << filename);
-
-		//	// ...header
-		//	boost::format fmter("%s,%s,%s,%s");
-		//	ofs << fmter % "Derivative" % "Jacobian" % "One FD" % "Two FD" << endl;
-
-		//	// ...table
-		//	fmter = boost::format("dV_%d/dq_%d,%.8f,%.8f,%.8f");
-		//	for (Size i = 0; i < nSwaps; ++i) {
-		//		for (Size j = 0; j < nQuotes; ++j) {
-		//			idx = i * nQuotes + j;
-		//			ofs << fmter % i % j % jac[idx] % oneSidedDiffs[idx] % twoSidedDiffs[idx] << endl;
-		//		}
-		//	}
-		//}
-		
+	// Price portfolio
+	vector<Real> swapNpv(nSwaps, 0.0);
+	for (Size i = 0; i < nSwaps; ++i) {
+		swapNpv[i] = portfolio[i]->NPV();
 	}
+
+#ifdef QL_ADJOINT
+	// Stop taping
+	cl::tape_function<double> npv(discounts, swapNpv);
+#endif
+
+	// Calculate and time d(swapNpv_j) / d(df_i) for i = 1,..., nDiscounts and j = 1,..., nSwaps
+	vector<double> jacNpv(nSwaps * nDiscounts, 0.0);
+#ifdef QL_ADJOINT
+	// Point at which to evaluate Jacobian = original discount factors
+	for (Size j = 0; j < nDiscounts; ++j) {
+		x_0[j] = Value(discounts[j].value());
+	}
+	jacNpv = npv.Jacobian(x_0);
+#endif
+
+	// Calculate the derivatives by one-sided finite difference
+	yts.linkTo(yieldCurve);
+	Real basisPoint = 0.0001;
+	vector<Real> oneSidedDiffs(nSwaps * nQuotes, 0.0);
+	for (Size j = 0; j < nQuotes; ++j) {
+		// Up 1 bp
+		marketQuotes[j]->setValue(marketRates[j] + basisPoint);
+		for (Size i = 0; i < nSwaps; ++i) {
+			oneSidedDiffs[i * nQuotes + j] = (portfolio[i]->NPV() - swapNpv[i]) / basisPoint;
+		}
+		// Reset to original curve
+		marketQuotes[j]->setValue(marketRates[j]);
+	}
+
+	// Calculate the derivatives by two-sided finite difference
+	// Could re-use one-sided derivs above but do it again for timings
+	vector<Real> twoSidedDiffs(nSwaps * nQuotes, 0.0);
+	vector<Real> upNpv(nSwaps, 0.0);
+	for (Size j = 0; j < nQuotes; ++j) {
+		// Up 1 bp
+		marketQuotes[j]->setValue(marketRates[j] + basisPoint);
+		for (Size i = 0; i < nSwaps; ++i) {
+			upNpv[i] = portfolio[i]->NPV();
+		}
+		// Down 1 bp
+		marketQuotes[j]->setValue(marketRates[j] - basisPoint);
+		for (Size i = 0; i < nSwaps; ++i) {
+			twoSidedDiffs[i * nQuotes + j] = (upNpv[i] - portfolio[i]->NPV()) / 2.0 / basisPoint;
+		}
+		// Reset to original curve
+		marketQuotes[j]->setValue(marketRates[j]);
+	}
+
+	// Output the results
+	Size idx = 0;
+	boost::format fmter = boost::format(" %+.7f ");
+
+	cout << "d df / d InputRates:\n";
+	for (Size i = 0; i < nDiscounts; ++i) {
+		cout << "  |";
+		for (Size j = 0; j < nQuotes; ++j) {
+			idx = i * nQuotes + j;
+			cout << fmter % jacDiscounts[idx];
+		}
+		cout << "|\n";
+	}
+	cout << "\n";
+
+	cout << "d InputRates / d df:\n";
+	for (Size i = 0; i < nQuotes; ++i) {
+		cout << "  |";
+		for (Size j = 0; j < nDiscounts; ++j) {
+			idx = i * nDiscounts + j;
+			cout << fmter % jacRates[idx];
+		}
+		cout << "|\n";
+	}
+	cout << "\n";
+
+	cout << "d SwapValues / d df:\n";
+	for (Size i = 0; i < nSwaps; ++i) {
+		cout << "  |";
+		for (Size j = 0; j < nDiscounts; ++j) {
+			idx = i * nDiscounts + j;
+			cout << fmter % jacNpv[idx];
+		}
+		cout << "|\n";
+	}
+	cout << "\n";
 }
