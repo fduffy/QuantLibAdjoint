@@ -306,4 +306,40 @@ void runExample_9() {
 	cout << "]\n";
 	cout << "1-sided FD evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
 
+	// Do the final matrix calculations that gives us the Jacobian d Bermudan / d vol
+	cout << "Starting dBermudan / dvol evaluation using intermediate results ...\n";
+	timer.start();
+	Matrix dhelperNpvdvolMat(numVols, numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		for (Size j = 0; j < numVols; ++j) {
+			idx = i * numVols + j;
+			dhelperNpvdvolMat[i][j] = dhelperNpvdvol[idx];
+		}
+	}
+
+	// Note: skip last zero column in this matrix
+	Matrix dHelperdsigmaMat(numVols, numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		for (Size j = 0; j < numVols; ++j) {
+			idx = i * numSigmas + j;
+			dHelperdsigmaMat[i][j] = dHelperdsigma[idx];
+		}
+	}
+	Matrix dHelperdsigmaInverse = inverse(dHelperdsigmaMat);
+
+	Matrix dBermudandsigmaMat(1, numVols);
+	for (Size i = 0; i < numVols; ++i) {
+		dBermudandsigmaMat[0][i] = dBermudandsigma[i];
+	}
+
+	Matrix dBermudandvol = dBermudandsigmaMat * (dHelperdsigmaInverse * dhelperNpvdvolMat);
+
+	timer.stop();
+	fmter = boost::format(" %.2f ");
+	cout << "  dBermudan / dvol: [";
+	for (Size i = 0; i < numVols; ++i)
+		cout << fmter % dBermudandvol[0][i];
+	cout << "]\n";
+	cout << "dBermudan / dvol evaluation finished, time taken: " << format(timer.elapsed(), 6, "%w") << "\n\n";
+
 }
