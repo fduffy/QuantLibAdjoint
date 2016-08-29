@@ -207,24 +207,51 @@ void runExample_8() {
 	cout << "\n";
 
 	cout << "d InputRates / d df:\n";
+	Matrix dInputdDfMat(nDiscounts, nQuotes);
 	for (Size i = 0; i < nQuotes; ++i) {
 		cout << "  |";
 		for (Size j = 0; j < nDiscounts; ++j) {
 			idx = i * nDiscounts + j;
+			dInputdDfMat[i][j] = jacRates[idx];
 			cout << fmter % jacRates[idx];
 		}
 		cout << "|\n";
 	}
 	cout << "\n";
+	Matrix dInputdDfInverse = inverse(dInputdDfMat);
 
 	cout << "d SwapValues / d df:\n";
+	Matrix dSwapsdDfMat(nSwaps, nDiscounts);
 	for (Size i = 0; i < nSwaps; ++i) {
 		cout << "  |";
 		for (Size j = 0; j < nDiscounts; ++j) {
 			idx = i * nDiscounts + j;
+			dSwapsdDfMat[i][j] = jacNpv[idx];
 			cout << fmter % jacNpv[idx];
 		}
 		cout << "|\n";
 	}
 	cout << "\n";
+
+	cout << "d SwapValues / d InputRates:\n";
+	Matrix dSwapsdInputMat = dSwapsdDfMat * dInputdDfInverse;
+	for (Size i = 0; i < nSwaps; ++i) {
+		cout << "  |";
+		for (Size j = 0; j < nDiscounts; ++j) {
+			cout << fmter % dSwapsdInputMat[i][j];
+		}
+		cout << "|\n";
+	}
+	cout << "\n";
+
+	cout << "d SwapValues / d InputRates by 2-sided FD:\n";
+	for (Size i = 0; i < nSwaps; ++i) {
+		cout << "  |";
+		for (Size j = 0; j < nQuotes; ++j) {
+			cout << fmter % twoSidedDiffs[i * nQuotes + j];
+		}
+		cout << "|\n";
+	}
+	cout << "\n";
+
 }
